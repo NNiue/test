@@ -2,179 +2,110 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>个人AI装修实验室</title>
+    <title>全风格AI装修实验室</title>
     <style>
         :root {
-            --primary-color: #2A5CAA; /* 科技蓝主色调 */
-            --hover-effect: drop-shadow(2px 2px 8px rgba(42,92,170,0.2));
+            --primary-blue: #2A5CAA;
+            --accent-gold: #C5A368;
         }
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            max-width: 1200px;
-            margin: 2rem auto;
-            padding: 2rem;
-            background: #f8f9fa;
-        }
-        .model-selector {
+        .style-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1rem;
-            margin: 2rem 0;
-        }
-        .lora-card {
-            border: 1px solid #e0e0e0;
-            border-radius: 12px;
-            padding: 1rem;
-            transition: transform 0.3s ease;
-            background: white;
-        }
-        .lora-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-        #previewContainer {
-            border: 2px dashed var(--primary-color);
-            border-radius: 8px;
-            padding: 1rem;
-            background: rgba(42,92,170,0.05);
-        }
-        #result {
-            margin-top: 2rem;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1.5rem;
+            padding: 2rem 0;
         }
-        .result-img {
-            border-radius: 8px;
-            transition: transform 0.3s;
-            cursor: zoom-in;
+        .style-card {
+            background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        button {
-            background: linear-gradient(135deg, var(--primary-color), #3A6CB0);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 25px;
-            font-size: 1.1rem;
-            border: none;
-            cursor: pointer;
+        .style-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(42,92,170,0.15);
+        }
+        .card-header {
+            border-left: 4px solid var(--accent-gold);
+            padding-left: 1rem;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
 <body>
-    <h1 style="color: var(--primary-color); text-align: center">个人AI装修实验室</h1>
-
-    <div class="model-selector">
-        <!-- 根据实际模型库结构配置 -->
-        <div class="lora-card">
-            <h3>台湾现代风</h3>
-            <p>融合磨石子砖与智能绿植系统</p>
-            <button onclick="selectModel('Taiwanese_Modern_Style_done')">选用此风格</button>
+    <h1 style="color: var(--primary-blue); text-align: center">全风格装修模拟系统</h1>
+ 
+    <div class="style-grid">
+        <!-- 完整风格列表（基于仓库结构生成） -->
+        <div class="style-card" onclick="selectModel('Modern_Luxe_done')">
+            <div class="card-header">
+                <h3>现代奢华风</h3>
+                <p>大理石/金属饰面/水晶灯具</p>
+            </div>
+            <button>启用此风格</button>
         </div>
-        <div class="lora-card">
-            <h3>工业复古风</h3>
-            <p>裸露管线与再生材质的完美结合</p>
-            <button onclick="selectModel('industrial_style_done')">选用此风格</button>
+ 
+        <div class="style-card" onclick="selectModel('Scandinavian_Style_done')">
+            <div class="card-header">
+                <h3>北欧极简风</h3>
+                <p>原木元素/几何线条/中性色调</p>
+            </div>
+            <button>启用此风格</button>
         </div>
-        <div class="lora-card">
-            <h3>日式极简</h3>
-            <p>榻榻米光影与收纳美学</p>
-            <button onclick="selectModel('japanese_done')">选用此风格</button>
+ 
+        <div class="style-card" onclick="selectModel('Sophisticated_Gray_Style_done')">
+            <div class="card-header">
+                <h3>高级灰风格</h3>
+                <p>混凝土质感/隐藏式照明/模块化家具</p>
+            </div>
+            <button>启用此风格</button>
+        </div>
+ 
+        <div class="style-card" onclick="selectModel('eclectic_style_done')">
+            <div class="card-header">
+                <h3>折衷混搭风</h3>
+                <p>古董家具/异国元素/撞色搭配</p>
+            </div>
+            <button>启用此风格</button>
+        </div>
+ 
+        <div class="style-card" onclick="selectModel('french_style_done')">
+            <div class="card-header">
+                <h3>法式宫廷风</h3>
+                <p>雕花线条/丝绒材质/水晶吊灯</p>
+            </div>
+            <button>启用此风格</button>
+        </div>
+ 
+        <div class="style-card" onclick="selectModel('loft_done')">
+            <div class="card-header">
+                <h3>LOFT工业风</h3>
+                <p>裸露管线/回收木材/金属框架</p>
+            </div>
+            <button>启用此风格</button>
         </div>
     </div>
-
-    <form id="generateForm" onsubmit="return false;">
-        <div id="previewContainer">
-            <label>📸 上传空间实景图：</label>
-            <input type="file" id="image" accept="image/*" required
-                   onchange="previewImage(this)">
-            <img id="preview" class="result-img" style="max-height: 400px">
-        </div>
-
-        <div style="margin: 2rem 0">
-            <label>🖌️ 风格描述（支持多语言）：</label>
-            <textarea id="prompt" rows="4" required
-                      placeholder="例：开放式厨房搭配中岛吧台，暖色间接照明，石英石台面与木纹柜体搭配..."></textarea>
-        </div>
-
-        <div style="display: flex; gap: 2rem; align-items: center">
-            <div>
-                <label>生成数量：</label>
-                <select id="num_images" style="padding: 8px 16px">
-                    <option>1</option>
-                    <option>4</option>
-                    <option>9</option>
-                </select>
-            </div>
-            <button onclick="generateImages()">开始空间演化</button>
-        </div>
-    </form>
-
-    <div id="result"></div>
-
+ 
     <script>
-        const HF_TOKEN = "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";
-        let selectedModel = "Taiwanese_Modern_Style_done";
-
-        // 动态模型选择
+        // 完整模型映射表 
+        const MODEL_CONFIG = {
+            'Modern_Luxe_done': { resolution: [1024, 768], blend: 0.9 },
+            'Scandinavian_Style_done': { resolution: [960, 640], blend: 0.85 },
+            'Sophisticated_Gray_Style_done': { resolution: [1152, 864], blend: 0.88 },
+            'eclectic_style_done': { resolution: [1280, 720], blend: 0.95 },
+            'french_style_done': { resolution: [1080, 1080], blend: 0.82 },
+            'loft_done': { resolution: [1366, 768], blend: 0.9 }
+        };
+ 
+        let currentModel = 'Modern_Luxe_done';
+ 
         function selectModel(modelId) {
-            selectedModel = modelId;
-            document.querySelectorAll('.lora-card').forEach(card  => {
-                card.style.borderColor  = card.contains(event.target)  ? var(--primary-color) : "#e0e0e0";
+            currentModel = modelId;
+            document.querySelectorAll('.style-card').forEach(card  => {
+                card.style.border  = card.getAttribute('onclick').includes(modelId)  
+                    ? '2px solid var(--primary-blue)' 
+                    : 'none';
             });
-        }
-
-        // 实时图片预览
-        function previewImage(input) {
-            const preview = document.getElementById('preview');
-            if (input.files  && input.files[0])  {
-                const reader = new FileReader();
-                reader.onload  = (e) => {
-                    preview.src  = e.target.result;
-                    preview.style.display  = 'block';
-                }
-                reader.readAsDataURL(input.files[0]);
-            }
-        }
-
-        // 核心生成逻辑
-        async function generateImages() {
-            const formData = new FormData();
-            formData.append('image',  document.getElementById('image').files[0]);
-            formData.append('parameters',  JSON.stringify({
-                prompt: document.getElementById('prompt').value,
-                num_images: parseInt(document.getElementById('num_images').value),
-                lora_config: {
-                    model_path: `${selectedModel}/${selectedModel}.safetensors`,
-                    adapter_scale: 0.85
-                }
-            }));
-
-            try {
-                const response = await fetch(
-                    `https://api-inference.huggingface.co/models/NNiuNUll/my-lora-platform`,
-                    {
-                        headers: { Authorization: `Bearer ${HF_TOKEN}` },
-                        method: 'POST',
-                        body: formData
-                    }
-                );
-
-                const results = await response.json();
-                displayResults(results);
-            } catch (error) {
-                console.error(' 生成异常:', error);
-            }
-        }
-
-        // 立体化展示结果
-        function displayResults(images) {
-            const container = document.getElementById('result');
-            container.innerHTML  = images.map((imgData,  index) => `
-                <div class="result-card">
-                    <img src="data:image/png;base64,${imgData}" class="result-img">
-                    <div class="result-meta">方案 ${index+1}</div>
-                </div>
-            `).join('');
         }
     </script>
 </body>
