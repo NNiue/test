@@ -2,131 +2,149 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>智能装修生成器 VPN专版</title>
+    <title>智能装修生成器 Pro 2025</title>
     <style>
-        /* 新增VPN状态监测模块 */
-        .vpn-indicator {
+        /* 原始样式保留 */
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        /* 新增代理状态指示器 */
+        .proxy-indicator {
             position: fixed;
-            bottom: 20px;
-            left: 20px;
+            top: 10px;
+            right: 10px;
             padding: 8px 15px;
-            border-radius: 20px;
-            background: linear-gradient(45deg, #4CAF50 30%, #8BC34A 100%);
+            border-radius: 15px;
+            background: #4CAF50;
             color: white;
-            font-size: 14px;
+            font-size: 0.9em;
             display: flex;
             align-items: center;
             gap: 8px;
+            transition: all 0.3s ease;
         }
-        .vpn-indicator::before {
+        .proxy-indicator::before {
             content: "";
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background: #ffffff80;
+            background: rgba(255,255,255,0.5);
         }
-        .vpn-indicator.connected::before  { background: #76FF03; }
-        .vpn-indicator.disconnected::before  { background: #ff1744; }
+        .proxy-indicator.active  {
+            background: #4CAF50;
+            box-shadow: 0 0 10px rgba(76,175,80,0.5);
+        }
+        .proxy-indicator.inactive  {
+            background: #ff4444;
+            box-shadow: 0 0 10px rgba(255,68,68,0.3);
+        }
     </style>
 </head>
 <body>
-    <!-- 原有界面元素保持不变 -->
+    <div class="container">
+        <!-- 原始界面元素保持不变 -->
+        <h1>智能空间生成器</h1>
+        <div class="controls">
+            <input type="text" id="promptInput" placeholder="输入您的设计需求...">
+            <button onclick="startGeneration()">生成方案</button>
+        </div>
+        <div id="resultContainer"></div>
+    </div>
 
-    <div class="vpn-indicator" id="vpnStatus">
-        VPN状态检测中...
+    <!-- 代理状态指示 -->
+    <div class="proxy-indicator" id="proxyStatus">
+        <span>代理端口：7897</span>
     </div>
 
     <script>
-        // 动态代理配置（核心修改点）
-        const VPN_CONFIG = {
-            enable: true,           // 强制开启代理模式
-            protocol: 'http',       // 适配主流VPN协议
-            host: '127.0.0.1',      // 本地回环地址
-            port: 7897,             // 用户指定端口
-            retryCount: 3,          // 失败重试次数
-            timeout: 25000          // 超时时间(ms)
+        // 原始功能函数保留
+        function showError(msg) {
+            const container = document.getElementById('resultContainer');
+            container.innerHTML  = `<div class="error">${msg}</div>`;
+        }
+
+        // 代理核心配置（关键修改点）
+        const PROXY_SETTINGS = {
+            enable: true,
+            protocol: 'http',
+            host: '127.0.0.1',
+            port: 7897,  // 用户指定端口
+            endpoints: {
+                healthCheck: '/proxy-health',
+                mainProxy: '/vpn-proxy'
+            },
+            timeout: 25000
         };
 
-        // 代理状态检测器
-        async function checkVPN() {
-            const testAPI = 'https://huggingface.co/api/health';
+        // 增强型代理检测（新增功能）
+        async function checkProxy() {
             try {
-                const testRes = await fetch(testAPI, {
-                    mode: 'no-cors',
-                    proxy: `${VPN_CONFIG.protocol}://${VPN_CONFIG.host}:${VPN_CONFIG.port}`
+                const healthCheck = await fetch(`http://${PROXY_SETTINGS.host}:${PROXY_SETTINGS.port}${PROXY_SETTINGS.endpoints.healthCheck}`,  {
+                    method: 'HEAD',
+                    timeout: 3000
                 });
-                document.getElementById('vpnStatus').className  = 'vpn-indicator connected';
-                document.getElementById('vpnStatus').innerHTML  = `
-                    <span>VPN已连接</span>
-                    <span>端口: ${VPN_CONFIG.port}</span>
-                `;
-                return true;
+                document.getElementById('proxyStatus').className  = healthCheck.ok  ?
+                    'proxy-indicator active' :
+                    'proxy-indicator inactive';
+                return healthCheck.ok;
             } catch {
-                document.getElementById('vpnStatus').className  = 'vpn-indicator disconnected';
-                document.getElementById('vpnStatus').textContent  = 'VPN未连接';
+                document.getElementById('proxyStatus').className  = 'proxy-indicator inactive';
                 return false;
             }
         }
 
-        // 重构的请求函数
-        async function secureFetch(url, options) {
-            let retry = 0;
-            const controller = new AbortController();
-
-            while (retry < VPN_CONFIG.retryCount)  {
-                try {
-                    const timeoutId = setTimeout(
-                        () => controller.abort(),
-                        VPN_CONFIG.timeout
-                    );
-
-                    const response = await fetch(url, {
-                        ...options,
-                        signal: controller.signal,
-                        agent: new URL(`${VPN_CONFIG.protocol}://${VPN_CONFIG.host}:${VPN_CONFIG.port}`)
-                    });
-
-                    clearTimeout(timeoutId);
-                    return response;
-                } catch (error) {
-                    if (++retry === VPN_CONFIG.retryCount)  throw error;
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-            }
-        }
-
-        // 修改后的生成函数
+        // 修改后的生成逻辑（保持原有流程）
         async function startGeneration() {
-            if (!await checkVPN()) {
-                showError('请先连接VPN');
+            // 原始验证逻辑保持不变
+            const prompt = document.getElementById('promptInput').value;
+            if (!prompt) {
+                showError('请输入设计需求');
+                return;
+            }
+
+            // 新增代理检测
+            if (!await checkProxy()) {
+                showError('代理服务未就绪，请检查VPN连接');
                 return;
             }
 
             try {
-                // ...原有参数验证逻辑...
+                // 构建代理请求
+                const response = await fetch(`http://${PROXY_SETTINGS.host}:${PROXY_SETTINGS.port}${PROXY_SETTINGS.endpoints.mainProxy}`,  {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Proxy-Secret': 'your_secure_token'  // 防止未授权访问
+                    },
+                    body: JSON.stringify({
+                        api_path: '/models/design-ai/v3',
+                        prompt: prompt,
+                        params: {
+                            resolution: '4K',
+                            style: 'modern'
+                        }
+                    }),
+                    timeout: PROXY_SETTINGS.timeout
+                });
 
-                const response = await secureFetch(
-                    'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xxl-2025',
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${HF_API_KEY}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(payload)
-                    }
-                );
+                // 原始结果处理逻辑保持不变
+                const data = await response.json();
+                renderResult(data);
 
-                // ...结果处理不变...
             } catch (error) {
-                console.error(`[VPN  ERROR] ${new Date().toLocaleString()}`, error);
-                showError(`网络故障: ${error.message}`);
+                console.error(`[${new  Date().toLocaleTimeString()}] 代理异常:`, error);
+                showError(`生成失败: ${error.message}`);
             }
         }
 
-        // 启动VPN检测
-        setInterval(checkVPN, 15000);
-        checkVPN();
+        // 启动时自动检测
+        setInterval(checkProxy, 15000);
+        checkProxy();
     </script>
 </body>
 </html>
