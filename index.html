@@ -2,149 +2,124 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>智能装修生成器 Pro 2025</title>
+    <title>AI装修效果生成器</title>
     <style>
-        /* 原始样式保留 */
-        .container {
-            max-width: 800px;
-            margin: 2rem auto;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        /* 新增代理状态指示器 */
-        .proxy-indicator {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            padding: 8px 15px;
-            border-radius: 15px;
-            background: #4CAF50;
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px }
+        .form-group { margin-bottom: 15px }
+        label { display: block; margin-bottom: 5px }
+        input, select, textarea { width: 100%; padding: 8px }
+        #preview { max-width: 300px; margin: 10px 0 }
+        #result { margin-top: 20px; display: grid; grid-gap: 10px }
+        .loading { display: none; color: #666; margin: 10px 0 }
+        .error { color: red; margin: 10px 0 }
+        button {
+            background: #007bff;
             color: white;
-            font-size: 0.9em;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-        }
-        .proxy-indicator::before {
-            content: "";
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.5);
-        }
-        .proxy-indicator.active  {
-            background: #4CAF50;
-            box-shadow: 0 0 10px rgba(76,175,80,0.5);
-        }
-        .proxy-indicator.inactive  {
-            background: #ff4444;
-            box-shadow: 0 0 10px rgba(255,68,68,0.3);
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- 原始界面元素保持不变 -->
-        <h1>智能空间生成器</h1>
-        <div class="controls">
-            <input type="text" id="promptInput" placeholder="输入您的设计需求...">
-            <button onclick="startGeneration()">生成方案</button>
-        </div>
-        <div id="resultContainer"></div>
-    </div>
+    <h1>AI装修效果生成器</h1>
 
-    <!-- 代理状态指示 -->
-    <div class="proxy-indicator" id="proxyStatus">
-        <span>代理端口：7897</span>
-    </div>
+    <form id="generateForm">
+        <div class="form-group">
+            <label>上传参考图（必填）:</label>
+            <input type="file" id="image" accept="image/*" required>
+            <img id="preview" src="#" alt="预览" style="display:none">
+        </div>
+
+        <div class="form-group">
+            <label>选择LoRA模型:</label>
+            <select id="lora">
+                <option value="1">现代简约风格</option>
+                <option value="2">古典欧式风格</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>描述词（建议格式）:</label>
+            <textarea id="prompt" rows="3" required placeholder="示例：modern living room, natural lighting, minimalist furniture, beige color scheme, plants decoration"></textarea>
+            <datalist id="presets">
+                <option>modern living room, marble floor, floor-to-ceiling windows</option>
+                <option>cozy bedroom, warm lighting, wooden furniture, textile textures</option>
+            </datalist>
+        </div>
+
+        <div class="form-group">
+            <label>生成数量:</label>
+            <select id="num_images">
+                <option>1</option>
+                <option>2</option>
+                <option>3</option>
+                <option>4</option>
+            </select>
+        </div>
+
+        <button type="submit">开始生成</button>
+    </form>
+
+    <div class="loading" id="loading">生成中...（可能需要30-60秒）</div>
+    <div class="error" id="error"></div>
+    <div id="result"></div>
 
     <script>
-        // 原始功能函数保留
-        function showError(msg) {
-            const container = document.getElementById('resultContainer');
-            container.innerHTML  = `<div class="error">${msg}</div>`;
-        }
+        const API_TOKEN = "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";
 
-        // 代理核心配置（关键修改点）
-        const PROXY_SETTINGS = {
-            enable: true,
-            protocol: 'http',
-            host: '127.0.0.1',
-            port: 7897,  // 用户指定端口
-            endpoints: {
-                healthCheck: '/proxy-health',
-                mainProxy: '/vpn-proxy'
-            },
-            timeout: 25000
-        };
-
-        // 增强型代理检测（新增功能）
-        async function checkProxy() {
-            try {
-                const healthCheck = await fetch(`http://${PROXY_SETTINGS.host}:${PROXY_SETTINGS.port}${PROXY_SETTINGS.endpoints.healthCheck}`,  {
-                    method: 'HEAD',
-                    timeout: 3000
-                });
-                document.getElementById('proxyStatus').className  = healthCheck.ok  ?
-                    'proxy-indicator active' :
-                    'proxy-indicator inactive';
-                return healthCheck.ok;
-            } catch {
-                document.getElementById('proxyStatus').className  = 'proxy-indicator inactive';
-                return false;
+        // 图片预览
+        document.getElementById('image').addEventListener('change',  function(e) {
+            const preview = document.getElementById('preview');
+            if (this.files[0])  {
+                preview.style.display  = 'block';
+                preview.src  = URL.createObjectURL(this.files[0]);
             }
-        }
+        });
 
-        // 修改后的生成逻辑（保持原有流程）
-        async function startGeneration() {
-            // 原始验证逻辑保持不变
-            const prompt = document.getElementById('promptInput').value;
-            if (!prompt) {
-                showError('请输入设计需求');
-                return;
-            }
-
-            // 新增代理检测
-            if (!await checkProxy()) {
-                showError('代理服务未就绪，请检查VPN连接');
-                return;
-            }
+        // 提交处理
+        document.getElementById('generateForm').addEventListener('submit',  async (e) => {
+            e.preventDefault();
+            document.getElementById('error').textContent  = '';
+            document.getElementById('loading').style.display  = 'block';
 
             try {
-                // 构建代理请求
-                const response = await fetch(`http://${PROXY_SETTINGS.host}:${PROXY_SETTINGS.port}${PROXY_SETTINGS.endpoints.mainProxy}`,  {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Proxy-Secret': 'your_secure_token'  // 防止未授权访问
-                    },
-                    body: JSON.stringify({
-                        api_path: '/models/design-ai/v3',
-                        prompt: prompt,
-                        params: {
-                            resolution: '4K',
-                            style: 'modern'
-                        }
-                    }),
-                    timeout: PROXY_SETTINGS.timeout
-                });
+                // 构建请求数据
+                const formData = new FormData();
+                formData.append('image',  document.getElementById('image').files[0]);
+                formData.append('prompt',  document.getElementById('prompt').value);
+                formData.append('parameters',  JSON.stringify({
+                    num_inference_steps: 30,
+                    num_images_per_prompt: parseInt(document.getElementById('num_images').value)
+                }));
 
-                // 原始结果处理逻辑保持不变
-                const data = await response.json();
-                renderResult(data);
+                // API请求
+                const modelId = document.getElementById('lora').value;
+                const response = await fetch(
+                    `https://api-inference.huggingface.co/models/NNiuNUll/my-lora/${modelId}`,
+                    {
+                        headers: { Authorization: `Bearer ${API_TOKEN}` },
+                        method: 'POST',
+                        body: formData
+                    }
+                );
 
-            } catch (error) {
-                console.error(`[${new  Date().toLocaleTimeString()}] 代理异常:`, error);
-                showError(`生成失败: ${error.message}`);
+                // 处理响应
+                if (!response.ok)  throw new Error(await response.text());
+                const blob = await response.blob();
+
+                // 显示结果
+                const img = document.createElement('img');
+                img.src  = URL.createObjectURL(blob);
+                img.style.maxWidth  = '100%';
+                document.getElementById('result').prepend(img);
+            } catch (err) {
+                document.getElementById('error').textContent  = `生成失败：${err.message}`;
+            } finally {
+                document.getElementById('loading').style.display  = 'none';
             }
-        }
-
-        // 启动时自动检测
-        setInterval(checkProxy, 15000);
-        checkProxy();
+        });
     </script>
 </body>
 </html>
