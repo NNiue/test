@@ -24,8 +24,8 @@ button { background: #007bff; color: white; border: none; padding: 10px 20px; cu
 <div id="results"></div>
 
 <script>
-// ==== 核心修改部分开始 ====
-const HF_API_TOKEN = "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";
+// ==== 修复版核心逻辑 ====
+const HF_API_TOKEN = "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";
 const API_ENDPOINT = "https://api-inference.huggingface.co/models/NNiuNUll/my-lora";
 
 async function generate() {
@@ -34,54 +34,87 @@ async function generate() {
   document.getElementById('status').textContent  = "正在生成...";
 
   try {
-    // 保留原始图片处理逻辑
+    // 验证输入完整性
     const file = document.getElementById('imageInput').files[0];
     if (!file) throw new Error("请先上传参考图！");
 
-    // 修改为HuggingFace专用请求格式
-    const formData = new FormData();
-    formData.append('image',  file);
-    formData.append('inputs',  document.getElementById('prompt').value);
-    formData.append('parameters',  JSON.stringify({
-      num_outputs: parseInt(document.getElementById('num').value),
-      lora_scale: 0.8,
-      height: 1024,
-      width: 1024
-    }));
+    // 转换图片为Base64
+    const imageBase64 = await readFileAsBase64(file);
 
-    // 修改API调用方式
-    const response = await fetch(API_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${HF_API_TOKEN}`,
-        "X-Wait-For-Model": "true"  // 防止模型加载延迟错误
-      },
-      body: formData
-    });
+    // 构建标准JSON请求体
+    const payload = {
+      inputs: document.getElementById('prompt').value,
+      parameters: {
+        num_outputs: parseInt(document.getElementById('num').value),
+        lora_scale: 0.8,
+        image: imageBase64,
+        height: 1024,
+        width: 1024
+      }
+    };
 
-    // 处理新API响应格式
+    // 添加模型加载重试机制
+    let retryCount = 0;
+    let response;
+    do {
+      response = await fetch(API_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${HF_API_TOKEN}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.status  === 503) {
+        const waitTime = 30; // 默认等待30秒
+        await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+        retryCount++;
+      } else {
+        break;
+      }
+    } while (retryCount < 3);
+
+    // 兼容性错误处理
     if (!response.ok)  {
-      const errorData = await response.json();
-      throw new Error(`API错误: ${errorData.error  || response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`API错误[${response.status}]:  ${parseHuggingFaceError(errorText)}`);
     }
 
-    // 直接获取生成图片（HuggingFace同步响应）
+    // 解析二进制图像响应
     const blob = await response.blob();
-    const imgUrl = URL.createObjectURL(blob);
-    const imgNode = new Image();
-    imgNode.src  = imgUrl;
+    const imgNode = document.createElement('img');
+    imgNode.src  = URL.createObjectURL(blob);
     document.getElementById('results').appendChild(imgNode);
 
     document.getElementById('status').textContent  = "生成成功！";
 
   } catch (error) {
-    document.getElementById('status').textContent  = `错误: ${error.message}`;
-    console.error(" 调试信息:", error);
+    document.getElementById('status').textContent  = `错误: ${error.message.replace('API 错误: ', '')}`;
+    console.error(" 调试日志:", error);
   } finally {
     btn.disabled  = false;
   }
 }
-// ==== 核心修改部分结束 ====
+
+// ===== 工具函数 =====
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = () => resolve(reader.result.split(',')[1]);  // 提取Base64数据部分
+    reader.onerror  = error => reject(error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function parseHuggingFaceError(text) {
+  try {
+    const htmlDoc = new DOMParser().parseFromString(text, "text/html");
+    return htmlDoc.querySelector('p').textContent  || "未知错误";
+  } catch {
+    return text.slice(0,  100);
+  }
+}
 </script>
 </body>
 </html>
