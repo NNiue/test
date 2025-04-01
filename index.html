@@ -1,111 +1,147 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>全风格AI装修实验室</title>
+    <title>AI装修生成器</title>
     <style>
-        :root {
-            --primary-blue: #2A5CAA;
-            --accent-gold: #C5A368;
+        .scroll-list {
+            height: 200px;
+            overflow-y: scroll;
+            border: 2px solid #2A5CAA;
+            margin: 20px 0;
         }
-        .style-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            padding: 2rem 0;
+        .model-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
         }
-        .style-card {
-            background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
-            border-radius: 16px;
-            padding: 1.5rem;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        .model-item.selected  {
+            background: rgba(42,92,170,0.1);
+            font-weight: bold;
         }
-        .style-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 15px rgba(42,92,170,0.15);
+        #previewImg {
+            max-width: 400px;
+            border: 3px dashed #2A5CAA;
         }
-        .card-header {
-            border-left: 4px solid var(--accent-gold);
-            padding-left: 1rem;
-            margin-bottom: 1rem;
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2A5CAA;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <h1 style="color: var(--primary-blue); text-align: center">全风格装修模拟系统</h1>
- 
-    <div class="style-grid">
-        <!-- 完整风格列表（基于仓库结构生成） -->
-        <div class="style-card" onclick="selectModel('Modern_Luxe_done')">
-            <div class="card-header">
-                <h3>现代奢华风</h3>
-                <p>大理石/金属饰面/水晶灯具</p>
-            </div>
-            <button>启用此风格</button>
-        </div>
- 
-        <div class="style-card" onclick="selectModel('Scandinavian_Style_done')">
-            <div class="card-header">
-                <h3>北欧极简风</h3>
-                <p>原木元素/几何线条/中性色调</p>
-            </div>
-            <button>启用此风格</button>
-        </div>
- 
-        <div class="style-card" onclick="selectModel('Sophisticated_Gray_Style_done')">
-            <div class="card-header">
-                <h3>高级灰风格</h3>
-                <p>混凝土质感/隐藏式照明/模块化家具</p>
-            </div>
-            <button>启用此风格</button>
-        </div>
- 
-        <div class="style-card" onclick="selectModel('eclectic_style_done')">
-            <div class="card-header">
-                <h3>折衷混搭风</h3>
-                <p>古董家具/异国元素/撞色搭配</p>
-            </div>
-            <button>启用此风格</button>
-        </div>
- 
-        <div class="style-card" onclick="selectModel('french_style_done')">
-            <div class="card-header">
-                <h3>法式宫廷风</h3>
-                <p>雕花线条/丝绒材质/水晶吊灯</p>
-            </div>
-            <button>启用此风格</button>
-        </div>
- 
-        <div class="style-card" onclick="selectModel('loft_done')">
-            <div class="card-header">
-                <h3>LOFT工业风</h3>
-                <p>裸露管线/回收木材/金属框架</p>
-            </div>
-            <button>启用此风格</button>
-        </div>
+    <h1>AI装修生成器</h1>
+
+    <!-- 模型滚动选择 -->
+    <div class="scroll-list">
+        <div class="model-item" onclick="selectModel('Modern_Luxe')">现代奢华风</div>
+        <div class="model-item" onclick="selectModel('Scandinavian')">北欧极简风</div>
+        <div class="model-item" onclick="selectModel('Industrial')">工业复古风</div>
+        <div class="model-item" onclick="selectModel('Japanese_Zen')">日式禅风</div>
+        <div class="model-item" onclick="selectModel('Cyberpunk')">赛博朋克风</div>
+        <div class="model-item" onclick="selectModel('French_Classic')">法式经典</div>
+        <div class="model-item" onclick="selectModel('Tropical')">热带度假风</div>
+        <div class="model-item" onclick="selectModel('Minimalist')">极简主义</div>
+        <div class="model-item" onclick="selectModel('Rustic')">乡村田园风</div>
+        <div class="model-item" onclick="selectModel('Art_Deco')">装饰艺术风</div>
     </div>
- 
+
+    <!-- 核心功能模块 -->
+    <div>
+        <input type="file" id="imageUpload" accept="image/*" onchange="previewImage(event)">
+        <br>
+        <img id="previewImg">
+    </div>
+
+    <div style="margin:20px 0">
+        <textarea id="prompt" rows="4" style="width:400px"
+                  placeholder="输入装修要求，例：开放式厨房+中岛吧台+智能灯光系统..."></textarea>
+    </div>
+
+    <button onclick="generate()" id="generateBtn">
+        <span id="loading"></span> 立即生成
+    </button>
+
+    <!-- 状态监控 -->
+    <div id="status" style="margin-top:20px;color:#666"></div>
+
+    <!-- 结果展示 -->
+    <div id="results" style="margin-top:30px"></div>
+
     <script>
-        // 完整模型映射表 
-        const MODEL_CONFIG = {
-            'Modern_Luxe_done': { resolution: [1024, 768], blend: 0.9 },
-            'Scandinavian_Style_done': { resolution: [960, 640], blend: 0.85 },
-            'Sophisticated_Gray_Style_done': { resolution: [1152, 864], blend: 0.88 },
-            'eclectic_style_done': { resolution: [1280, 720], blend: 0.95 },
-            'french_style_done': { resolution: [1080, 1080], blend: 0.82 },
-            'loft_done': { resolution: [1366, 768], blend: 0.9 }
-        };
- 
-        let currentModel = 'Modern_Luxe_done';
- 
-        function selectModel(modelId) {
-            currentModel = modelId;
-            document.querySelectorAll('.style-card').forEach(card  => {
-                card.style.border  = card.getAttribute('onclick').includes(modelId)  
-                    ? '2px solid var(--primary-blue)' 
-                    : 'none';
+        const HF_API_KEY = "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";
+        let selectedModel = "Modern_Luxe";
+
+        // 模型选择
+        function selectModel(model) {
+            selectedModel = model;
+            document.querySelectorAll('.model-item').forEach(item  => {
+                item.classList.toggle('selected',  item.textContent.includes(model));
             });
+        }
+
+        // 图片预览
+        function previewImage(event) {
+            const reader = new FileReader();
+            reader.onload  = () => {
+                document.getElementById('previewImg').src  = reader.result;
+            };
+            reader.readAsDataURL(event.target.files[0]);
+        }
+
+        // 生成核心逻辑
+        async function generate() {
+            const btn = document.getElementById('generateBtn');
+            const status = document.getElementById('status');
+            btn.disabled  = true;
+            document.getElementById('loading').className  = 'loading';
+
+            try {
+                status.textContent  = "① 正在上传图片...";
+                const formData = new FormData();
+                formData.append('image',  document.getElementById('imageUpload').files[0]);
+                formData.append('parameters',  JSON.stringify({
+                    prompt: document.getElementById('prompt').value,
+                    model: selectedModel,
+                    resolution: "1024x768"
+                }));
+
+                status.textContent  = "② 正在调用AI模型...";
+                const response = await fetch('https://api-inference.huggingface.co/models/NNiuNUll/my-lora-platform',  {
+                    headers: { Authorization: `Bearer ${HF_API_KEY}` },
+                    method: 'POST',
+                    body: formData
+                });
+
+                status.textContent  = "③ 渲染效果图中...";
+                const result = await response.json();
+
+                if(result.error)  throw new Error(result.error);
+
+                // 显示结果
+                document.getElementById('results').innerHTML  = result.images.map(img  => `
+                    <div style="margin:10px; display:inline-block">
+                        <img src="data:image/png;base64,${img}" style="width:300px; border:2px solid #ddd">
+                    </div>
+                `).join('');
+
+                status.textContent  = `✅ 生成完成！共生成${result.images.length} 种方案`;
+
+            } catch (error) {
+                status.innerHTML  = `<span style="color:red">❌ 错误: ${error.message}</span>`;
+                console.error(error);
+            } finally {
+                btn.disabled  = false;
+                document.getElementById('loading').className  = '';
+            }
         }
     </script>
 </body>
