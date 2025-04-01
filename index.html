@@ -1,92 +1,136 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>LoRA生成器 - 2025新版（已修复）</title>
-    <style>
-        body { font-family: Arial; max-width: 800px; margin: 20px auto; padding: 20px; }
-        input, select, textarea { display: block; margin: 10px 0; width: 100%; padding: 8px; }
-        button { background: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer; }
-        #results img { width: 256px; margin: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        #status { color: #d9534f; margin: 10px 0; }
-    </style>
+<title>LoRA生成器 - 2025新版</title>
+<style>
+body { font-family: Arial; max-width: 800px; margin: 20px auto; padding: 20px; }
+input, select, textarea { display: block; margin: 10px 0; width: 100%; padding: 8px; }
+button { background: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer; }
+#results img { width: 256px; margin: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+#status { color: #d9534f; margin: 10px 0; }
+</style>
 </head>
 <body>
-    <h2>LoRA图片生成器（v2 API修复版）</h2>
-    <input type="file" id="imageInput" accept="image/*">
-    <select id="modelSelect">
-        <!-- 已修复：改用Replicate托管模型 -->
-        <option value="https://replicate.delivery/pbxt/my-lora/1.safetensors">Model  1</option>
-    </select>
-    <input type="number" id="num" value="1" min="1" max="4">
-    <textarea id="prompt" placeholder="示例：赛博朋克风格的未来城市，霓虹灯光，雨夜氛围"></textarea>
-    <button onclick="generate()">生成图片</button>
-    <div id="status"></div>
-    <div id="results"></div>
+<h2>LoRA图片生成器（v2 API适配版）</h2>
+<input type="file" id="imageInput" accept="image/*">
+<select id="modelSelect">
+<option value="https://huggingface.co/NNiuNUll/my-lora/resolve/main/1.safetensors">Model 1</option>
+</select>
+<input type="number" id="num" value="1" min="1" max="4">
+<textarea id="prompt" placeholder="示例：赛博朋克风格的未来城市，霓虹灯光，雨夜氛围"></textarea>
+<button onclick="generate()">生成图片</button>
+<div id="status"></div>
+<div id="results"></div>
 
-    <script>
-        // ✅ 修复1：更新SDXL版本ID（2025最新版）
-        const API_TOKEN = "r8_08OBQsEYr53cDskZ14O5mLaIWwgG3Ey0wpBtU";
-        const SDXL_VERSION = "39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c";
-        const API_URL = "https://api.replicate.com/v2/predictions";
+<script>
+const API_TOKEN = "r8_08OBQsEYr53cDskZ14O5mLaIWwgG3Ey0wpBtU";
+const SDXL_VERSION = "9ca5c5e2ab572d9a8a80df766a3b39b6";
+const API_URL = "https://api.replicate.com/v2/predictions";
 
-        async function generate() {
-            const btn = document.querySelector('button');
-            btn.disabled  = true;
-            document.getElementById('status').textContent  = "正在生成...";
+// CORS兼容配置
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Region"
+};
 
-            try {
-                // ✅ 修复2：增强文件类型验证
-                const file = document.getElementById('imageInput').files[0];
-                if (!file || !file.type.match('image/(png |jpeg|jpg)'))
-                    throw new Error("仅支持PNG/JPEG格式图片！");
+async function generate() {
+  const btn = document.querySelector('button');
+  btn.disabled = true;
+  document.getElementById('status').textContent = "正在生成...";
 
-                // ✅ 修复3：优化Base64转换
-                const imageBase64 = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onerror  = reject;
-                    reader.onload  = () => {
-                        if(reader.result.length  > 5*1024*1024) // 5MB限制
-                            reject(new Error("图片大小超过5MB限制"));
-                        resolve(reader.result.split(',')[1]);
-                    };
-                    reader.readAsDataURL(file);
-                });
+  try {
+    // 1. 检查图片上传
+    const file = document.getElementById('imageInput').files[0];
+    if (!file) throw new Error("请先上传参考图！");
 
-                // ✅ 修复4：移除X-Region头部
-                const response = await fetch(API_URL, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Token ${API_TOKEN}`,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        version: SDXL_VERSION,
-                        input: {
-                            prompt: document.getElementById('prompt').value  + ", 超高清, 8K分辨率, 电影级细节",
-                            image: `data:${file.type};base64,${imageBase64}`,
-                            num_outputs: parseInt(document.getElementById('num').value),
-                            lora_adapters: [{
-                                url: document.getElementById('modelSelect').value,
-                                weight: 0.8  // ✅ 修复5：权重调整至安全范围
-                            }]
-                        }
-                    })
-                });
+    // 2. 转换图片为Base64
+    const imageBase64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = error => reject(error);
+      reader.readAsDataURL(file);
+    });
 
-                if (!response.ok)  {
-                    const errorData = await response.json();
-                    throw new Error(`API错误: ${errorData.detail  || response.status}`);
-                }
+    // 3. 配置API请求参数
+    const payload = {
+      version: SDXL_VERSION,
+      input: {
+        prompt: document.getElementById('prompt').value + ", 超高清, 8K分辨率, 电影级细节",
+        image: `data:image/png;base64,${imageBase64}`,
+        num_outputs: parseInt(document.getElementById('num').value),
+        lora_adapters: [{
+          url: document.getElementById('modelSelect').value,
+          weight: 0.8 // 修正权重范围
+        }]
+      }
+    };
 
-                // ...保持原有轮询逻辑...
+    // 4. 调用API（添加CORS配置）
+    const response = await fetch(API_URL, {
+      method: "POST",
+      mode: "cors", // 显式声明跨域模式
+      headers: {
+        ...CORS_HEADERS,
+        "Authorization": `Token ${API_TOKEN}`,
+        "Content-Type": "application/json",
+        "X-Region": "CN"
+      },
+      body: JSON.stringify(payload)
+    });
 
-            } catch (error) {
-                document.getElementById('status').textContent  = "错误: " + error.message;
-                console.error("[DEBUG]",  error);
-            } finally {
-                btn.disabled  = false;
-            }
+    // 5. 处理响应
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`API错误: ${errorData.detail || response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // 6. 轮询结果
+    const checkStatus = async (id) => {
+      const res = await fetch(`${API_URL}/${id}`, {
+        method: "GET",
+        mode: "cors",
+        headers: {
+          ...CORS_HEADERS,
+          "Authorization": `Token ${API_TOKEN}`,
+          "X-Region": "CN"
         }
-    </script>
+      });
+
+      if (!res.ok) throw new Error(`状态查询失败: ${res.status}`);
+      const status = await res.json();
+
+      document.getElementById('status').textContent =
+        `状态: ${status.status} (进度: ${status.metrics?.progress || 0}%)`;
+
+      if (status.status === "succeeded") {
+        status.output.forEach(img => {
+          const imgNode = new Image();
+          imgNode.src = img;
+          imgNode.onload = () => {
+            document.getElementById('results').appendChild(imgNode);
+          };
+        });
+      } else if (status.status !== "failed") {
+        setTimeout(() => checkStatus(id), 1500);
+      }
+    };
+
+    await checkStatus(data.id);
+
+  } catch (error) {
+    document.getElementById('status').textContent = `错误: ${error.message}`;
+    console.error("完整错误跟踪:", {
+      message: error.message,
+      stack: error.stack,
+      response: error.response
+    });
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
 </body>
 </html>
