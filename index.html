@@ -1,126 +1,120 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-<title>LoRA生成器 - 2025专业版</title>
-<style>
-/* 优化视觉层次 */
-body { font-family: 'Segoe UI', Arial; max-width: 800px; margin: 20px auto; padding: 25px; }
-.input-group { margin: 15px 0; background: #f8f9fa; padding: 15px; border-radius: 8px; }
-button { background: linear-gradient(135deg, #4a90e2, #63d471); transition: opacity 0.3s; }
-button:disabled { opacity: 0.6; }
-#results { display: grid; grid-template-columns: repeat(auto-fit, minmax(256px, 1fr)); gap: 15px; }
-.status-indicator { height: 4px; background: #e0e0e0; margin: 10px 0; border-radius: 2px; }
-.progress { background: #63d471; width: 0%; transition: width 0.3s ease; }
-</style>
+    <meta charset="UTF-8">
+    <title>多模型LoRA生成器</title>
+    <style>
+        .container { max-width: 800px; margin: 20px auto; padding: 20px; background: #f8f9fa; }
+        .input-group { margin: 15px 0; }
+        select, input[type="number"], textarea { width: 100%; padding: 8px; border: 1px solid #ddd; }
+        button { background: #4CAF50; color: white; padding: 12px; width: 100%; border: none; cursor: pointer; }
+        #preview { max-width: 512px; margin: 10px 0; border: 2px dashed #ccc; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(256px, 1fr)); gap: 15px; }
+    </style>
 </head>
 <body>
-<h2>🔮 LoRA生成器（HuggingFace优化版）</h2>
+    <div class="container">
+        <h2>⚡ 多模型LoRA生成系统</h2>
 
-<div class="input-group">
-  <select id="taskType" onchange="toggleInput()">
-    <option value="text-to-image">文本生成图像</option>
-    <option value="image-to-image">图像风格转换</option>
-  </select>
-</div>
+        <!-- 核心交互模块 -->
+        <div class="input-group">
+            <label>选择LoRA模型：</label>
+            <select id="modelSelect">
+                <option value="1">赛博朋克增强版 v1.5</option>
+                <option value="2">水墨艺术风格 v2.0</option>
+            </select>
+        </div>
 
-<div class="input-group" id="imageUpload" style="display: none;">
-  <input type="file" id="imageInput" accept="image/png, image/jpeg">
-</div>
+        <div class="input-group">
+            <label>上传参考图：</label>
+            <input type="file" id="imageInput" accept="image/png, image/jpeg">
+            <img id="preview">
+        </div>
 
-<div class="input-group">
-  <textarea id="prompt" placeholder="输入详细描述（建议包含：主体/风格/色彩/细节）"></textarea>
-</div>
+        <div class="input-group">
+            <label>生成数量（1-4）：</label>
+            <input type="number" id="numInput" min="1" max="4" value="1">
+        </div>
 
-<div class="input-group">
-  <button onclick="generate()">立即生成</button>
-  <div class="status-indicator"><div class="progress"></div></div>
-  <div id="status"></div>
-</div>
+        <div class="input-group">
+            <label>文字描述：</label>
+            <textarea id="prompt" rows="3" placeholder="例：未来城市夜景，霓虹灯光，赛博朋克风格"></textarea>
+        </div>
 
-<div id="results"></div>
+        <button onclick="generate()">开始生成</button>
+        <div id="status" style="margin:10px 0; color:#666;"></div>
+        <div class="grid" id="results"></div>
+    </div>
 
-<script>
-const HF_API_TOKEN = "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";
-const MODEL_REPO = "NNiuNUll/my-lora";
+    <script>
+        const API_TOKEN = "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";
+        const MODEL_MAP = {
+            "1": "https://huggingface.co/NNiuNUll/my-lora/resolve/main/1.safetensors",
+            "2": "https://huggingface.co/NNiuNUll/my-lora/resolve/main/2.safetensors"
+        };
 
-// ===== 核心逻辑优化 =====
-async function generate() {
-  const btn = document.querySelector('button');
-  const taskType = document.getElementById('taskType').value;
-  btn.disabled  = true;
-  document.querySelector('.progress').style.width  = '30%';
+        // 实时图片预览
+        document.getElementById('imageInput').addEventListener('change',  function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload  = function(e) {
+                document.getElementById('preview').src  = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
 
-  try {
-    // 动态构建API端点
-    const apiEndpoint = `https://api-inference.huggingface.co/pipeline/${taskType}/${MODEL_REPO}`;
+        async function generate() {
+            const btn = document.querySelector('button');
+            btn.disabled  = true;
+            document.getElementById('status').textContent  = "模型加载中...";
 
-    // 构建合规请求体
-    const payload = new FormData();
-    payload.append('inputs',  document.getElementById('prompt').value);
+            try {
+                // 输入验证
+                const file = document.getElementById('imageInput').files[0];
+                if (!file) throw new Error("请上传参考图像");
+                if (file.size  > 5 * 1024 * 1024) throw new Error("图片大小超过5MB限制");
 
-    if (taskType === 'image-to-image') {
-      const file = document.getElementById('imageInput').files[0];
-      if (!file) throw new Error("请上传参考图像");
-      payload.append('image',  file);
-    }
+                // 构建多部分请求
+                const formData = new FormData();
+                formData.append('image',  file);
+                formData.append('prompt',  document.getElementById('prompt').value);
+                formData.append('num_images',  document.getElementById('numInput').value);
+                formData.append('lora_scale',  0.7);
 
-    // 添加模型参数
-    payload.append('parameters',  JSON.stringify({
-      lora_scale: 0.8,
-      height: 1024,
-      width: 1024,
-      num_images: 1
-    }));
+                // 动态模型加载
+                const modelUrl = MODEL_MAP[document.getElementById('modelSelect').value];
+                let response;
+                for (let retry = 0; retry < 3; retry++) {
+                    response = await fetch(modelUrl, {
+                        method: "POST",
+                        headers: { "Authorization": `Bearer ${API_TOKEN}` },
+                        body: formData
+                    });
+                    if (response.status  === 503) await new Promise(r => setTimeout(r, 30000));
+                    else break;
+                }
 
-    // 智能重试机制
-    let response;
-    for (let retry = 0; retry < 3; retry++) {
-      response = await fetch(apiEndpoint, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${HF_API_TOKEN}` },
-        body: payload
-      });
+                // 处理响应
+                if (!response.ok)  {
+                    const error = await response.json();
+                    throw new Error(`[${error.code}]  ${error.message}`);
+                }
 
-      if (response.status  === 503) {
-        const waitTime = response.headers.get('Retry-After')  || 30;
-        await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
-      } else {
-        break;
-      }
-    }
+                // 渲染结果
+                const blob = await response.blob();
+                const img = document.createElement('img');
+                img.src  = URL.createObjectURL(blob);
+                img.style.boxShadow  = '0 4px 12px rgba(0,0,0,0.15)';
+                document.getElementById('results').prepend(img);
+                document.getElementById('status').textContent  = "生成成功！";
 
-    document.querySelector('.progress').style.width  = '70%';
-
-    // 错误处理优化
-    if (!response.ok)  {
-      const errorData = await response.json();
-      throw new Error(`[${errorData.error_type}]  ${errorData.error}`);
-    }
-
-    // 结果渲染
-    const blob = await response.blob();
-    const img = document.createElement('img');
-    img.src  = URL.createObjectURL(blob);
-    img.onload  = () => document.querySelector('.progress').style.width  = '100%';
-    document.getElementById('results').prepend(img);
-
-  } catch (error) {
-    document.getElementById('status').textContent  = `错误: ${error.message}`;
-    console.error('[DEBUG]',  error);
-  } finally {
-    setTimeout(() => {
-      btn.disabled  = false;
-      document.querySelector('.progress').style.width  = '0%';
-    }, 1000);
-  }
-}
-
-// ===== 辅助功能 =====
-function toggleInput() {
-  const taskType = document.getElementById('taskType').value;
-  document.getElementById('imageUpload').style.display  =
-    taskType === 'image-to-image' ? 'block' : 'none';
-}
-</script>
+            } catch (error) {
+                document.getElementById('status').textContent  = `错误: ${error.message}`;
+                console.error("[DEBUG]",  error);
+            } finally {
+                btn.disabled  = false;
+            }
+        }
+    </script>
 </body>
 </html>
