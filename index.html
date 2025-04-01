@@ -11,7 +11,7 @@
     </style>
 </head>
 <body>
-    <h2>LoRA图片生成器（v2 API适配版）</h2>
+    <h2>LoRA图片生成器（国际版API适配）</h2>
     <input type="file" id="imageInput" accept="image/*">
     <select id="modelSelect">
         <option value="https://huggingface.co/NNiuNUll/my-lora/resolve/main/1.safetensors?download=true">Model  1</option>
@@ -23,11 +23,10 @@
     <div id="results"></div>
 
     <script>
-        // 🔥 替换为你的Replicate密钥
+        // 🔥 重要修改点1：使用国际版端点
         const API_TOKEN = "r8_08OBQsEYr53cDskZ14O5mLaIWwgG3Ey0wpBtU";
         const SDXL_VERSION = "9ca5c5e2ab572d9a8a80df766a3b39b6";
-        const API_URL = "https://api.replicate.com/v1/models/stability-ai/sdxl";   // 国际版
-<!--        // const API_URL = "https://api-cn.replicate.com/v1/predictions";   // 中国大陆版-->
+        const API_URL = "https://api.replicate.com/v2/predictions";
 
         async function generate() {
             const btn = document.querySelector('button');
@@ -35,24 +34,29 @@
             document.getElementById('status').textContent  = "正在生成...";
 
             try {
-                // 1. 检查图片上传
+                // 重要修改点2：增强文件校验
                 const file = document.getElementById('imageInput').files[0];
                 if (!file) throw new Error("请先上传参考图！");
+                if (file.size  > 5 * 1024 * 1024) throw new Error("图片大小不得超过5MB");
 
-                // 2. 转换图片为Base64
-                const imageBase64 = await new Promise((resolve) => {
+                // Base64转换增加格式校验
+                const imageBase64 = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
-                    reader.onload  = () => resolve(reader.result.split(',')[1]);
+                    reader.onload  = () => {
+                        if (!/^data:image\/(png|jpeg|jpg);base64/.test(reader.result))  {
+                            reject("仅支持PNG/JPEG格式");
+                        }
+                        resolve(reader.result.split(',')[1]);
+                    };
                     reader.readAsDataURL(file);
                 });
 
-                // 3. 调用v2 API
+                // 重要修改点3：移除X-Region头，调整权重参数
                 const response = await fetch(API_URL, {
                     method: "POST",
                     headers: {
                         "Authorization": `Token ${API_TOKEN}`,
-                        "Content-Type": "application/json",
-                        "X-Region": "CN"  // 中国大陆用户需要此Header
+                        "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
                         version: SDXL_VERSION,
@@ -62,25 +66,35 @@
                             num_outputs: parseInt(document.getElementById('num').value),
                             lora_adapters: [{
                                 url: document.getElementById('modelSelect').value,
-                                weight: 1.5  // 权重上限提升至1.8
+                                weight: 1.2  // 调整为安全范围
                             }]
                         }
                     })
                 });
 
-                // 4. 处理响应
+                // 新增错误响应解析
+                if (response.status  === 402) throw new Error("API配额不足");
+                if (response.status  === 403) throw new Error("API密钥无效");
                 if (!response.ok)  throw new Error(`HTTP错误! 状态码: ${response.status}`);
-                const data = await response.json();
 
-                // 5. 轮询状态（新增进度百分比）
+                const data = await response.json();
+                console.log("API 响应:", data);  // 新增调试日志
+
+                // 轮询逻辑优化（添加超时机制）
+                const startTime = Date.now();
                 const checkStatus = async () => {
+                    if (Date.now()  - startTime > 120000) {
+                        throw new Error("生成超时（120秒）");
+                    }
+
                     const res = await fetch(`${API_URL}/${data.id}`,  {
-                        headers: {
-                            "Authorization": `Token ${API_TOKEN}`,
-                            "X-Region": "CN"
-                        }
+                        headers: { "Authorization": `Token ${API_TOKEN}` }
                     });
                     const status = await res.json();
+
+                    // 新增服务端错误捕获
+                    if (status.error)  throw new Error(`服务端错误: ${status.error}`);
+
                     document.getElementById('status').textContent  =
                         `状态: ${status.status}  (进度: ${status.metrics?.progress  || 0}%)`;
 
@@ -93,14 +107,14 @@
                             };
                         });
                     } else if (status.status  !== "failed") {
-                        setTimeout(checkStatus, 1500); // 1.5秒轮询一次
+                        setTimeout(checkStatus, 1500);
                     }
                 };
                 await checkStatus();
 
             } catch (error) {
                 document.getElementById('status').textContent  = "错误: " + error.message;
-                console.error("[DEBUG]",  error); // 输出完整错误日志
+                console.error("[DEBUG]",  error);
             } finally {
                 btn.disabled  = false;
             }
