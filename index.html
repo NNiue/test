@@ -1,72 +1,96 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>LoRA图片生成</title>
+    <title>LoRA生成器</title>
+    <style>
+        /* 添加基础样式防止页面错乱 */
+        body { font-family: Arial; max-width: 600px; margin: 20px auto; padding: 20px; }
+        input, select, textarea { display: block; margin: 10px 0; width: 100%; padding: 8px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer; }
+        #results img { width: 200px; margin: 10px; border: 1px solid #ddd; }
+        #status { color: #d9534f; margin: 10px 0; }
+    </style>
 </head>
 <body>
+    <h2>LoRA图片生成器</h2>
     <input type="file" id="imageInput" accept="image/*">
     <select id="modelSelect">
         <option value="https://huggingface.co/NNiuNUll/my-lora/resolve/main/1.safetensors">Model 1</option>
-<!--        <option value="模型2的RAW链接">Model 2</option>-->
     </select>
     <input type="number" id="num" value="1" min="1" max="4">
-    <textarea id="prompt" placeholder="补充关键词"></textarea>
-    <button onclick="generate()">生成</button>
+    <textarea id="prompt" placeholder="示例：一只穿着宇航服的猫，赛博朋克风格"></textarea>
+    <button onclick="generate()">生成图片</button>
+    <div id="status"></div>
     <div id="results"></div>
 
-<script>
-const API_TOKEN = "r8_8tGpTj5SOqleX5yFSVhlqMBL8iXIAha2dMMVa";
-const SDXL_VERSION = "7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc"; // 确认Replicate官网最新版本号
+    <script>
+        // 🔥 替换为你的Replicate密钥
+        const API_TOKEN = "r8_08OBQsEYr53cDskZ14O5mLaIWwgG3Ey0wpBtU";
+        const SDXL_VERSION = "7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc";
 
-async function generate() {
-  const file = document.getElementById('imageInput').files[0];
-  const modelUrl = document.getElementById('modelSelect').value;
-  const num = document.getElementById('num').value;
-  const prompt = document.getElementById('prompt').value;
+        async function generate() {
+            const btn = document.querySelector('button');
+            btn.disabled  = true;
+            document.getElementById('status').textContent  = "正在生成...";
 
-  // 将图片转为Base64
-  const reader = new FileReader();
-  reader.readAsDataURL(file);
-  reader.onload = async () => {
-    const imageBase64 = reader.result.split(',')[1]; // 移除data:image/...前缀
+            try {
+                // 步骤1：检查图片是否上传
+                const file = document.getElementById('imageInput').files[0];
+                if (!file) throw new Error("请先上传图片！");
 
-    // 调用Replicate API
-    const response = await fetch("https://api.replicate.com/v1/predictions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Token ${API_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        version: SDXL_VERSION,
-        input: {
-          prompt: prompt,
-          image: `data:image/png;base64,${imageBase64}`,
-          num_outputs: parseInt(num),
-          lora_adapters: [{ url: modelUrl, weight: 1 }]
+                // 步骤2：转换图片为Base64
+                const imageBase64 = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload  = () => resolve(reader.result.split(',')[1]);
+                    reader.readAsDataURL(file);
+                });
+
+                // 步骤3：调用API
+                const response = await fetch("https://api.replicate.com/v1/predictions",  {
+                    method: "POST",
+                    headers: { "Authorization": `Token ${API_TOKEN}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        version: SDXL_VERSION,
+                        input: {
+                            prompt: document.getElementById('prompt').value  + ", 高清, 8K, 电影级光影",
+                            image: `data:image/png;base64,${imageBase64}`,
+                            num_outputs: parseInt(document.getElementById('num').value),
+                            lora_adapters: [{
+                                url: document.getElementById('modelSelect').value,
+                                weight: 1.2  // 模型强度
+                            }]
+                        }
+                    })
+                });
+
+                // 步骤4：处理结果
+                const data = await response.json();
+                if (data.error)  throw new Error(data.error);
+
+                // 步骤5：轮询进度
+                const checkStatus = async () => {
+                    const res = await fetch(`https://api.replicate.com/v1/predictions/${data.id}`,  {
+                        headers: { "Authorization": `Token ${API_TOKEN}` }
+                    });
+                    const status = await res.json();
+                    document.getElementById('status').textContent  = `状态: ${status.status}  (预计还需${status.metrics?.predict_time_remaining  || 20}秒)`;
+
+                    if (status.status  === "succeeded") {
+                        status.output.forEach(img  => {
+                            document.getElementById('results').innerHTML  += `<img src="${img}">`;
+                        });
+                    } else if (status.status  !== "failed") {
+                        setTimeout(checkStatus, 2000); // 每2秒检查一次
+                    }
+                };
+                await checkStatus();
+
+            } catch (error) {
+                document.getElementById('status').textContent  = "错误: " + error.message;
+            } finally {
+                btn.disabled  = false;
+            }
         }
-      })
-    });
-
-    const prediction = await response.json();
-    if (prediction.error) return alert("错误: " + prediction.error);
-
-    // 轮询获取结果
-    const interval = setInterval(async () => {
-      const statusRes = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-        headers: { "Authorization": `Token ${API_TOKEN}` }
-      });
-      const statusData = await statusRes.json();
-
-      if (statusData.status === "succeeded") {
-        clearInterval(interval);
-        statusData.output.forEach(imgUrl => {
-          document.getElementById('results').innerHTML += `<img src="${imgUrl}" style="width:200px">`;
-        });
-      }
-    }, 1000);
-  };
-}
-</script>
+    </script>
 </body>
 </html>
